@@ -1,114 +1,70 @@
 import React, { useState, useEffect } from 'react';
-import { View, FlatList, StyleSheet } from 'react-native';
-import { Button, Text, Card } from 'react-native-paper';
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const TASKS_API_URL = 'http://3.128.173.76:8080/api/tasks'; // Replace with your actual API URL
+import { View, Text, StyleSheet, FlatList } from 'react-native';
+import { FAB } from 'react-native-paper';
+import { fetchTasks } from '../services/api';
 
 const TaskListScreen = ({ navigation }) => {
   const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [user, setUser] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
-    const fetchUserAndTasks = async () => {
-      try {
-        // Get user info and token from AsyncStorage
-        const storedUser = JSON.parse(await AsyncStorage.getItem('user'));
-        const token = await AsyncStorage.getItem('token');
+    loadTasks(1, statusFilter);
+  }, [statusFilter]);
 
-        if (storedUser && token) {
-          setUser(storedUser); // Set the user state
-          
-          // Fetch tasks with the authentication token
-          const response = await axios.get(TASKS_API_URL, {
-            headers: {
-              Authorization: `Bearer ${token}`, // Pass token in the request header
-            },
-          });
-
-          setTasks(response.data.tasks); // Set the fetched tasks
-        } else {
-          setError('User not authenticated');
-        }
-      } catch (err) {
-        setError('Failed to fetch tasks. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserAndTasks();
-  }, []);
-
-  const handleLogout = async () => {
-    // Clear user data and token from AsyncStorage and navigate to Login screen
-    await AsyncStorage.removeItem('user');
-    await AsyncStorage.removeItem('token');
-    navigation.replace('Login');
+  const loadTasks = async (pageNum, status) => {
+    const data = await fetchTasks(page);
+    if (pageNum === 1) {
+      setTasks(data);
+    } else {
+      setTasks((prev) => [...prev, ...data]);
+    }
+    
+    setHasMore(page >= data.totalPages > 0);
   };
 
-  const renderTask = ({ item }) => (
-    <Card style={styles.card}>
-      <Card.Content>
-        <Text variant="titleLarge">{item.title}</Text>
-        <Text>{item.description}</Text>
-        <Text>Status: {item.status}</Text>
-        <Text>Assigned to: {item.assignedTo?.name}</Text>
-        <Text>Created by: {item.createdBy?.name}</Text>
-      </Card.Content>
-    </Card>
+  const handleLoadMore = () => {
+    if (hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadTasks(nextPage, statusFilter);
+    }
+  };
+
+  const renderItem = ({ item }) => (
+    <View style={styles.taskContainer}>
+      <Text style={styles.title}>{item.title}</Text>
+      <Text>{item.description}</Text>
+    </View>
   );
 
   return (
     <View style={styles.container}>
-      {user ? (
-        <Text variant="headlineSmall" style={styles.userInfo}>
-          Welcome, {user.name} ({user.email})
-        </Text>
-      ) : null}
+      <View style={styles.filterContainer}>
+        <Button mode={statusFilter === '' ? 'contained' : 'outlined'} onPress={() => setStatusFilter('')}>All</Button>
+        <Button mode={statusFilter === 'To do' ? 'contained' : 'outlined'} onPress={() => setStatusFilter('To do')}>To do</Button>
+        <Button mode={statusFilter === 'In progress' ? 'contained' : 'outlined'} onPress={() => setStatusFilter('In progress')}>In progress</Button>
+        <Button mode={statusFilter === 'Done' ? 'contained' : 'outlined'} onPress={() => setStatusFilter('Done')}>Done</Button>
+      </View>
+      <FlatList
+        data={tasks}
+        renderItem={renderItem}
+        keyExtractor={(item) => item._id}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+      />
 
-      <Text variant="headlineLarge" style={styles.title}>Task List</Text>
-
-      {loading ? (
-        <Text>Loading tasks...</Text>
-      ) : error ? (
-        <Text>{error}</Text>
-      ) : (
-        <FlatList
-          data={tasks}
-          renderItem={renderTask}
-          keyExtractor={(item) => item._id.toString()}
-        />
-      )}
-
-      <Button mode="contained" onPress={handleLogout} style={styles.button}>
-        Logout
-      </Button>
+      <FAB style={styles.fab} icon="plus" onPress={() => navigation.navigate('CreateTask')} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-  },
-  title: {
-    marginBottom: 20,
-  },
-  userInfo: {
-    marginBottom: 10,
-  },
-  card: {
-    marginBottom: 10,
-  },
-  button: {
-    marginTop: 20,
-    width: '100%',
-  },
+  container: { flex: 1, padding: 20, backgroundColor: '#f4f4f4' },
+  taskContainer: { padding: 10, marginVertical: 5, backgroundColor: 'white', borderRadius: 5 },
+  title: { fontSize: 18, fontWeight: 'bold' },
+  fab: { position: 'absolute', right: 20, bottom: 20, backgroundColor: '#007bff' }
 });
 
 export default TaskListScreen;

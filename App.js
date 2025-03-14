@@ -1,36 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useContext, createContext } from 'react';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Provider as PaperProvider } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
 import LoginScreen from './screens/LoginScreen';
 import TaskListScreen from './screens/TaskListScreen';
+import ProfileScreen from './screens/ProfileScreen';
 
-const Stack = createStackNavigator();
+const AuthContext = createContext();
+const Tab = createBottomTabNavigator();
 
-export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    // Check if user is already logged in
-    const checkLoginStatus = async () => {
-      const user = await AsyncStorage.getItem('user');
-      if (user) {
-        setIsLoggedIn(true);
-      }
-    };
-
-    checkLoginStatus();
-  }, []);
+const App = () => {
+  const [user, setUser] = useState(null);
 
   return (
-    <PaperProvider>
+    <AuthContext.Provider value={{ user, setUser, logout: () => setUser(null) }}>
       <NavigationContainer>
-        <Stack.Navigator initialRouteName={isLoggedIn ? 'TaskList' : 'Login'}>
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="TaskList" component={TaskListScreen} />
-        </Stack.Navigator>
+        {user ? (
+          <Tab.Navigator>
+            <Tab.Screen name="Home" component={TaskListScreen} 
+              options={{
+                tabBarIcon: ({ color, size }) => (
+                  <MaterialIcons name="home" color={color} size={size} />
+                )
+              }}
+            />
+            <Tab.Screen name="Profile" component={ProfileScreen} 
+              options={{
+                tabBarIcon: ({ color, size }) => (
+                  <MaterialIcons name="person" color={color} size={size} />
+                )
+              }}
+              />
+          </Tab.Navigator>
+        ) : (
+          <LoginScreen />
+        )}
       </NavigationContainer>
-    </PaperProvider>
+    </AuthContext.Provider>
   );
-}
+};
+
+export { AuthContext };
+export default App;
